@@ -26,6 +26,10 @@ classdef CalcOperatorPrm_ekion < handle
         liquid;
         peltier;
         interferrencePrm;
+        p1
+        p2
+        tau
+        MOperatorConstPrm
     end
 
 
@@ -68,6 +72,11 @@ classdef CalcOperatorPrm_ekion < handle
                 %電流上限
                 options.i_max = 1;
                 options.i_min = -0.5;
+
+                %パラメータ
+                options.p1 = 0.1;
+                options.p2 = 0.1;
+                options.tau = 20;
             end
 
             %% 読み取り専用実験条件
@@ -311,6 +320,7 @@ classdef CalcOperatorPrm_ekion < handle
             obj.tube.A_w = A_w; %発散エネルギーがないため0
             obj.tube.apxA_w4k = apxA_w_4k;
             obj.tube.A_w4k = A_w_4k;
+            obj.tube.tubeAirConstPrm = options.heatTransferCoefAir_tube *S(13,1) /  obj.tube.mwcw4k;
 
 
        %% 液体
@@ -328,6 +338,13 @@ classdef CalcOperatorPrm_ekion < handle
 
             obj.liquid.A_l = A_l; %発散エネルギーがないため0
             obj.liquid.A_l4k = A_l_4_k; %発散エネルギーがないため0
+
+
+         %%パラメータ代入
+         obj.p1 = options.p1;
+         obj.p2 = options.p2;
+         obj.tau = options.tau;
+         obj.MOperatorConstPrm =[1; 1; 0.133788193218401];
 
 
         end

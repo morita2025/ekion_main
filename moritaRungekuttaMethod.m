@@ -6,7 +6,7 @@ function next_cycle_variable = moritaRungekuttaMethod(functionPointer,cycle_coun
              prev_variable
              prm
              tubePartIndex=1
-             isInterferrence=prm.settings.isInterferrence
+             isInterferrence=prm.experimentalSettings.isInterferrence
          end
 
         if rem(tubePartIndex,4) ~=0
