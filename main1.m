@@ -1,53 +1,65 @@
 clear ;
-close all;
-max_time = 3000;
+% close all;
+max_time = 500;
 dt = 1;
 t = 0:dt:max_time;
 blockNum = 3;
-ref = 1*[0.3, 0, 0.1;...
+liquidVelocityGain = 1.00;
+ref =0.4*[0.3, 0, 0.1;...
            0.3, 0, 0.18;...
-           0.5, 0, 0.3];
-liquidVelocity = 0.002;%*3.75*1;
+           0.5, 0, 0.27];
+liquidVelocity = 0.002*liquidVelocityGain;
 alpah_l = 16;
 heatTransferCoefAir_tube = 10;
-tau = 20;
+tau = 50;
+ref(:,3) = 1/liquidVelocityGain*ref(:,3);
 
+% ref(3,:) = 0.4*ref(3,:);
+% ref(3,3) = 1.5*ref(3,3);
 
-sum =0;
-p=1;
-
-prm =  CalcOperatorPrm_ekion(outsideTemperature=27.05,i_max=2,i_min=0,...
+prm =  CalcOperatorPrm_ekion(outsideTemperature=27.05,i_max=3,i_min=0,...
                              heatTransferCoef_air=270,heatTransferCoef_tube=270,heatTransferCoef_liquid=alpah_l,...
                              heatTransferCoefAir_tube = heatTransferCoefAir_tube,velocity = liquidVelocity,...
-                             tau = tau,...
+                             tau = tau, p1 = 0.2, p2= 0.3,... 
                            isRugekuttaMethodUse=false,isInterferrence=true);
 variable= getVariableFunction(blockNum,length(t),ref(:,1));
 
 
 refTimePrm = 1/30;
+
+%% インスタンスの定義
+
+%bezout identitiy
 controlN = cell(blockNum,1);
 controlInvD = cell(blockNum,1);
 controlInvB = cell(blockNum,1);
+
+%disturbunce comensator
+controlCompensate = cell(blockNum,1);
+
+%debugCell
 debugN = cell(blockNum,1);
 debugInvD = cell(blockNum,1);
 debugInvB = cell(blockNum,1);
 debugX2  = cell(blockNum,1);
+
+
 for blockId = 1:blockNum
     variable.ref(3*blockId-2:3*blockId,:) = [ref(blockId, 1); 0; ref(blockId, 3)].* (1 - exp(-refTimePrm*t)  );
     controlN{blockId} = ControlN(prm=prm,dt=dt,cycleNum=length(t)); 
     controlInvD{blockId} = ControlInvD(prm=prm,dt=dt,cycleNum=length(t)); 
     controlInvB{blockId} = ControlInvB(prm=prm,dt=dt,cycleNum=length(t)); 
+    controlCompensate{blockId} = DsiturbunceCompemsator(prm=prm,dt=dt,cycleNum=length(t)); 
 
     %debug
-    debugN{blockId} = ControlN(prm=prm,dt=dt,cycleNum=length(t));
+    debugN{blockId} = ControllerN(prm=prm,dt=dt,cycleNum=length(t));
     debugInvD{blockId} = ControlInvD(prm=prm,dt=dt,cycleNum=length(t)); 
     debugInvB{blockId} = ControlInvB(prm=prm,dt=dt,cycleNum=length(t)); 
     debugX2{blockId} = zeros(3,1);
 end
 
 addInterferenceElements = cell(blockNum,1);
-% variable.u(1:12,1:end) = 1.6;
-% variable.u([1,3,4,6,7,9],601:end) = 0.5;
+
 
 
 
@@ -55,10 +67,12 @@ addInterferenceElements = cell(blockNum,1);
 
 
 %% debug variable
-
+debugX3 = zeros(2,1);
+% % % % debugInvQF1 = ControlInvQF1(prm=prm,dt=dt,cycleNum=length(t));
+debugInvTildeNF2 = ControlInvTildeNF2(prm=prm,dt=dt,cycleNum=length(t));
 
 variable.debug_y(:,2) = [0;0];
-% controlN{2} = ControlN(prm=prm,dt=dt,cycleNum=length(t)); 
+debugN{55} = ControlN(prm=prm,dt=dt,cycleNum=length(t)); 
 debugX1 = zeros(3,1);
 
 
@@ -70,7 +84,7 @@ for cycleCount = 2:length(t)
     % variable.debug_e(:,cycleCount) = 0.005*[1;1];%ref - variable.debug_y(:,cycleCount);
     % variable.debug_u(:,cycleCount) =  debugInvB{1}.calcNextCycle(variable.debug_e(:,cycleCount));
     % variable.debug_ya(:,cycleCount+1) = debugInvD{1}.calcNextCycle(variable.debug_u(:,cycleCount));
-    % variable.debug_y(:,cycleCount+1) = debugN{1}.calcNextCycle(variable.debug_ya(:,cycleCount+1));
+    % variable.debug_y(:,cycleCount+1) = debugN{1}.calcNextCycle([1,1]);%variable.debug_ya(:,cycleCount+1));
     % debugX1 = moritaEulerMethod(@getQDxdt,cycleCount,dt,[[ref(1); 0; ref(2)],debugX1,zeros(3,1)],prm,1,0);
     % variable.debug_NInvM(:,cycleCount+1) = debugN{2}.calcNextCycle(1./prm.MOperatorConstPrm([1,3],1).* debugX1([1,3],1));
 
@@ -80,18 +94,38 @@ for cycleCount = 2:length(t)
         debugX2{blockId} = moritaEulerMethod(@getQDxdt,cycleCount,dt,[variable.ref(3*blockId-2:3*blockId,cycleCount),debugX2{blockId},zeros(3,1)],prm,1,0);
         variable.debug_NInvM([3*blockId-2,3*blockId],cycleCount+1) = debugN{blockId}.calcNextCycle(1./prm.MOperatorConstPrm([1,3],1).* debugX2{blockId}([1,3],1));
 
+        %% comepensator
+        if cycleCount == 1
+            uPrevious = zeros(3,1);
+        else
+            uPrevious = variable.u(3*blockId-2:3*blockId,cycleCount-1);
+        end
+        compensatorOutput  = controlCompensate{blockId}.calcNextCycle(uPrevious=uPrevious,...
+                                                                        yaMeasure=variable.y_a(3*blockId-2:3*blockId,cycleCount),...
+                                                                        yMeasure=variable.y(4*blockId-3:4*blockId,cycleCount),...
+                                                                        ylMeasure=variable.y_l(4*blockId-3:4*blockId,cycleCount));
+        variable.f_1([3*blockId-2,3*blockId],cycleCount) = compensatorOutput([1,2],1);
+        variable.f_2([3*blockId-2,3*blockId],cycleCount) = compensatorOutput([3,4],1);
+
+        variable.f(3*blockId-2:3*blockId,cycleCount) = variable.f_1(3*blockId-2:3*blockId,cycleCount) - variable.f_2(3*blockId-2:3*blockId,cycleCount);
+
+
         %% operator main
         variable.e_asterisk(3*blockId-2:3*blockId,cycleCount) = variable.ref(3*blockId-2:3*blockId,cycleCount)...
-            - [variable.y(4*blockId-3,cycleCount); 0; variable.y_l(4*blockId,cycleCount)];
+            - [variable.y(4*blockId-3,cycleCount); 0; variable.y_l(4*blockId,cycleCount)]...
+            + 0.* (variable.f_1(3*blockId-2:3*blockId,cycleCount) - variable.f_2(3*blockId-2:3*blockId,cycleCount));
         invBInput = variable.e_asterisk([3*blockId-2,3*blockId],cycleCount);
-        % invBInput(1,1) = 0;
         vector2U = controlInvB{blockId}.calcNextCycle(invBInput);
         variable.u(3*blockId-2:3*blockId,cycleCount) = [vector2U(1); 0; vector2U(2)];
-
-        % variable.u(3*blockId-2:3*blockId,cycleCount) = 0.1;
-
-
     end
+
+
+
+    %% debug
+        % variable.unko4(:,cycleCount) =debugInvQF1.calcNextCycle([1;1]);
+        variable.unko5(:,cycleCount) =debugN{55}.calcNextCycle([2;2]);
+        variable.unko6(:,cycleCount) =debugInvTildeNF2.calcNextCycle(variable.unko5(:,cycleCount));
+        variable.unko7(:,cycleCount) = compensatorOutput([5,6]);
 
     %% plnat
     for blockId =1:blockNum %addInterferenceElements  
@@ -137,51 +171,74 @@ for cycleCount = 2:length(t)
 
 
 end
-%ya系列を3→4に変換する処理
-variable.plotYa = NaN(4 * blockNum, length(variable.y_a));  
-variable.plotRef1 = NaN(4 * blockNum, length(variable.ref)); 
-variable.plotRef2 = NaN(4 * blockNum, length(variable.ref));  
 
-for i = 1:blockNum
-    idx_in = (i-1)*3 + 1;
-    idx_out = (i-1)*4 + 1;
-    variable.plotYa(idx_out:idx_out+2,:) = variable.y_a(idx_in:idx_in+2,:);  
-    variable.plotRef1(idx_out:idx_out+2,:) = variable.ref(idx_in:idx_in+2,:);
-    variable.plotRef2(idx_out:idx_out+2,:) = variable.ref(idx_in:idx_in+2,:);
-    variable.plotRef2(idx_out:idx_out+1,:) = NaN;
-    variable.plotRef1(idx_out+1:idx_out+2,:) = NaN;
-end
-figure(1);
-plot(variable.y_l(:,3000),"Color","r")
-hold on
-plot(variable.y(:,3000),"Color","b")
-% plot(variable.ref(1,1)*ones(size(variable.y(:,1000))),"--")
-plot(variable.plotRef1(:,3000),"o","LineWidth",2,"Color","b")
-plot(variable.plotRef2(:,3000),"o","LineWidth",2,"Color","r")
+debugMicoreactorPlotter(blockNum,t,variable);
 
-figure(2);
-plot(variable.y_l(4,:))
-hold on
-plot(variable.y(1,:),"Color","r")
-plot(variable.y(3,:),"Color","b")
-plot(variable.debug_NInvM(1,:),"--")
-plot(variable.debug_NInvM(3,:),"--")
 
-figure(4);
-plot(variable.y_l(8,:))
-hold on
-plot(variable.y(5,:),"Color","r")
-% plot(variable.y(7,:),"Color","b")
-plot(variable.debug_NInvM(4,:),"--")
-plot(variable.debug_NInvM(6,:),"--")
+% %ya系列をyl系列に変換する処理
+% variable.plotYa = NaN(4 * blockNum, length(variable.y_a));  
+% variable.plotRef1 = NaN(4 * blockNum, length(variable.ref)); 
+% variable.plotRef2 = NaN(4 * blockNum, length(variable.ref));  
+% 
+% for i = 1:blockNum
+%     idx_in = (i-1)*3 + 1;
+%     idx_out = (i-1)*4 + 1;
+%     variable.plotYa(idx_out:idx_out+2,:) = variable.y_a(idx_in:idx_in+2,:);  
+%     variable.plotRef1(idx_out:idx_out+2,:) = variable.ref(idx_in:idx_in+2,:);
+%     variable.plotRef2(idx_out+1:idx_out+3,:) = variable.ref(idx_in:idx_in+2,:);
+%     variable.plotRef2(idx_out:idx_out+2,:) = NaN;
+%     variable.plotRef1(idx_out+1:idx_out+2,:) = NaN;
+% end
+% figure(1);
+% plot(variable.y_l(:,length(t)-3),"Color","r")
+% hold on
+% plot(variable.y(:,length(t)-3),"Color","b")
+% % plot(variable.ref(1,1)*ones(size(variable.y(:,1000))),"--")
+% plot(variable.plotRef1(:,length(t)-3),"o","LineWidth",2,"Color","b")
+% plot(variable.plotRef2(:,length(t)-3),"o","LineWidth",2,"Color","r")
+% legend("yl_{4n}[C^{\circ}]","y_{4n-3}[C^{\circ}]","ref_{3k-2}[C^{\circ}]","ref_{3k}[C^{\circ}]","fontsize",15,"location","northwest")
+% title("t=" + string(length(t)-3) + "[s]" +"  All Box temperature","fontsize",18)
+% 
+% 
+% figure('Position', [2000, 000, 1500*0.8, 1200*0.8]);
+% for blockId = 1:blockNum
+%         % figure(blockId+30);
+%         subplot(3,2,2*blockId-1)
+%         plot(variable.y_l(4*blockId,:))
+%         hold on
+%         plot(variable.y(4*blockId-3,:),"Color","r")
+%         plot(variable.y(4*blockId-1,:),"Color","b")
+%         plot(variable.debug_NInvM(3*blockId-2,:),"--")
+%         plot(variable.debug_NInvM(3*blockId,:),"--")
+%         ylim([0 max(max(variable.y(:,end)),max(variable.y(4*blockNum-1,:)))])
+%         legend("yl"+string(4*blockId)+"[C^{\circ}]","y"+string(4*blockId-3)+"[C^{\circ}]","y"+string(4*blockId-1)+"[C^{\circ}]","fontsize",12)
+%         title("Box:" + string(blockId) +"  Temperature","fontsize",18)
+% 
+%         subplot(3,2,2*blockId)
+%         plot(variable.u(3*blockId-2,:))
+%         hold on
+%         plot(variable.u(3*blockId,:))
+%         legend("u"+string(3*blockId-2)+"[A]","u"+string(3*blockId)+"[A]","fontsize",12)
+%         title("Box:" + string(blockId) +"  Current","fontsize",18)
+% end
 
-figure(5);
-plot(variable.y_l(12,:))
-hold on
-plot(variable.y(9,:),"Color","r")
-% plot(variable.y(11,:),"Color","b")
-plot(variable.debug_NInvM(7,:),"--")
-plot(variable.debug_NInvM(9,:),"--")
+
+
+% figure(4);
+% plot(variable.y_l(8,:))
+% hold on
+% plot(variable.y(5,:),"Color","r")
+% % plot(variable.y(7,:),"Color","b")
+% plot(variable.debug_NInvM(4,:),"--")
+% plot(variable.debug_NInvM(6,:),"--")
+% 
+% figure(5);
+% plot(variable.y_l(12,:))
+% hold on
+% plot(variable.y(9,:),"Color","r")
+% % plot(variable.y(11,:),"Color","b")
+% plot(variable.debug_NInvM(7,:),"--")
+% plot(variable.debug_NInvM(9,:),"--")
 
 % figure(4)
 % hold on
@@ -197,12 +254,16 @@ plot(variable.debug_NInvM(9,:),"--")
 % plot(variable.debug_NInvM(2,:),"--")
 % unko55 = variable.debug_ya(2,1:end-1) - controlInvB{1}.debugVectorCell{1,4}(3,:);
 
+%Nの逆取れているか
+% figure()
+% plot(variable.unko6(1,:))
+% hold on 
+% plot(variable.unko6(2,:))
 
 
 
 
-
-%plotData
+% plotData
 tempData = prm.experimentalSettings.outsideTemperature - transpose([variable.y([1,3],1:end-1); variable.y_l(3,1:end-1)]);
 timeData = transpose(t);
 inputData = transpose(variable.u([1,3],:)); 
@@ -211,7 +272,7 @@ plotTempData = [tempData];
 plotInputData = inputData;
 
 
-%% makeGraph
+% makeGraph
 FILE_IS_SAVE=false;
 graphToolPath="C:\Users\mykot\OneDrive - Tokyo University of Agriculture and Technology (1)\60MATLAB_sagyou\makeGraph";
 addpath(graphToolPath);

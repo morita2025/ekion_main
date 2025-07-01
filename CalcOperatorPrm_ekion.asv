@@ -28,6 +28,8 @@ classdef CalcOperatorPrm_ekion < handle
         liquid;
         peltier;
         interferrencePrm;
+        isComensateD1;
+        isComensateD2;
         p1
         p2
         tau
@@ -41,8 +43,8 @@ classdef CalcOperatorPrm_ekion < handle
             arguments
                 options.isRugekuttaMethodUse = false;
                 options.isinterferenceRejectionUse = true;
-                options.isCompensateD1 = true;
-                options.isCompensateD2 = true;
+                options.isComensateD1 = true;
+                options.isComensateD2 = true;
                 options.isInterferrence = 1;
 
                 %気温等
@@ -87,8 +89,8 @@ classdef CalcOperatorPrm_ekion < handle
                                              "kp",options.kp,...
                                              "ki",options.ki,...
                                              "k",options.ki,...
-                                             "isCompensateD1",options.isCompensateD1 ,...
-                                             "isCompensateD2",options.isCompensateD2 ,...
+                                             "isComensateD1 ",options.isComensateD1 ,...
+                                             "isComensateD2 ",options.isComensateD2 ,...
                                              "i_max",options.i_max,...
                                              "i_min",options.i_min...
                                              );

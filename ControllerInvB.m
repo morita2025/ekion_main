@@ -1,38 +1,25 @@
-classdef ControlInvB < handle
+classdef ControllerInvB < handle & Operator & Integrator
     properties
         %デバッグ用
     end
 
-    properties (SetAccess = immutable, GetAccess=public) %読み取り専用＆外部からアクセスする用
-        prm
-        dt
-        isRugekuttaMethodUse
-        comment
-        cycleNum
+    properties (SetAccess = immutable, GetAccess=public)
         operatorInstanceN
-        operatorInstance
+        operatorInstanceQN
+        operatorInstanceQD
     end
 
 
-    properties (SetAccess = public, GetAccess = public) %書き換え可能＆外部からアクセスする用
-        %状態変数
-        stateVariable
-        debugVectorCell
-        cycleCount
+    properties (SetAccess = public, GetAccess = public)
         x_1
         x_2
         x_3
         x_4
-
-
-        %デバッグ用変数
-        
+        cycleCount
     end
 
     methods
-        %コンストラクタ
-        function obj = ControlInvB(options)
-            %設定の初期化
+        function obj = ControllerInvB(options)
             arguments                
                 options.prm = [];
                 options.dt  =1;
@@ -44,8 +31,6 @@ classdef ControlInvB < handle
             obj.cycleNum = options.cycleNum;
             obj.comment = options.comment;
 
-
-            %変数の初期化
             obj.debugVectorCell = {};
             obj.stateVariable = zeros(2,1);
             obj.x_1 = zeros(3,1);
@@ -53,50 +38,23 @@ classdef ControlInvB < handle
             obj.x_3 = zeros(3,1);
             obj.x_4 = zeros(3,1);
 
-            %instance
-            obj.operatorInstanceN = ControlN(prm=obj.prm,dt=obj.dt,cycleNum=obj.cycleNum,comment="Has-a invB");
-
-            %debug用変数の初期化
+            obj.operatorInstanceN = ControllerN(prm=obj.prm,dt=obj.dt,cycleNum=obj.cycleNum,comment="Has-a invB");
+            obj.operatorInstanceQN = ControllerQ(prm=obj.prm,dt=obj.dt,cycleNum=obj.cycleNum,comment="Has-a invB");
+            obj.operatorInstanceQD = ControllerQ(prm=obj.prm,dt=obj.dt,cycleNum=obj.cycleNum,comment="Has-a invB");
             obj.cycleCount =1;
-            
+           
             for i = 1:4
                 obj.debugVectorCell{i} = zeros(3,obj.cycleNum);
             end
         end
 
-
-
-
-
-        
-        %dxdtを取得する関数
-        % function dxdt = getDxdt(obj,u13,tStateVariable)
-        %     inputCurr = [u13(1); 0; u13(2)];
-        %     y_a_prev = [tStateVariable(1); 0; tStateVariable(2)];
-        % 
-        %     ohmHeat = -obj.prm.peltier.resistance*[1; 0; 1].*power(inputCurr,2);
-        %     peltierHeat =  2*obj.prm.peltier.seebeck*[1; 0; 1].*((obj.prm.peltier.absoluteTemperature)- y_a_prev).*inputCurr;
-        %     tDxdt = (ohmHeat + peltierHeat)./obj.prm.aluminum.maca;
-        % 
-        %     for i=1:4
-        %         tDxdt = tDxdt + ((-1)^(i)) *obj.prm.aluminum.A_a(:,i).* (y_a_prev.^i);
-        %     end
-        % 
-        %     dxdt = tDxdt([1,3]);
-        % end
-        
-
         %update
         function operatorOutput =  calcNextCycle(obj,e13)
-            
-
+           
             %N_LPF
-            if obj.prm.experimentalSettings.isRugekuttaMethodUse == 0
-                obj.x_1 = moritaEulerMethod(@getQDxdt,obj.cycleCount,obj.dt,[obj.x_3,obj.x_1,zeros(3,1)],obj.prm,1,0);
-            else
-                obj.x_1 = moritaRungekuttaMethod(@getQDxdt,obj.cycleCount,obj.dt,[obj.x_3,obj.x_1,zeros(3,1)],obj.prm,1,0);
-            end
-
+            vector2X_1 = obj.operatorInstanceQN.calcNextCycle(obj.x_3([1,3]));
+            obj.x_1 = [vector2X_1(1); 0; vector2X_1(2)];
+            
             %N
             vector2X_2 = obj.operatorInstanceN.calcNextCycle([obj.x_1(1); obj.x_1(3)]);
             obj.x_2 = [vector2X_2(1); 0; vector2X_2(2)];
@@ -105,11 +63,8 @@ classdef ControlInvB < handle
             obj.x_3 = (obj.x_2 + [e13(1); 0; e13(2)]) ./ obj.prm.MOperatorConstPrm;
 
             %Q_D
-            if obj.prm.experimentalSettings.isRugekuttaMethodUse == 0
-                obj.x_4 = moritaEulerMethod(@getQDxdt,obj.cycleCount,obj.dt,[obj.x_3,obj.x_4,zeros(3,1)],obj.prm,1,0);
-            else
-                obj.x_4 = moritaRungekuttaMethod(@getQDxdt,obj.cycleCount,obj.dt,[obj.x_3,obj.x_4,zeros(3,1)],obj.prm,1,0);
-            end
+            vector2X_4 = obj.operatorInstanceQD.calcNextCycle(obj.x_3([1,3]));
+            obj.x_4 = [vector2X_4(1); 0; vector2X_4(2)];
             x_4_dot =  (obj.x_3 - obj.x_4) ./ (obj.prm.tau);
 
             %D
@@ -121,7 +76,7 @@ classdef ControlInvB < handle
             for i=1:4
                 a3 = a3 + ((-1)^(i+1)) *obj.prm.aluminum.A_a(:,i).*[ma_ca13; ma_ca2; ma_ca13] .* (obj.x_4.^i);
             end
-            %応答改善のためアルミ干渉を含めた右分解を行う
+            %応答改善のためアルミ干渉を含めた右分解を行う場合は有効にする
             % a3 = a3 + obj.prm.interferrencePrm.y_a .* obj.x_4;
 
             b1 = -a2;
@@ -129,7 +84,6 @@ classdef ControlInvB < handle
             b3 = 2*a1;
             b = [1; 0; 1].*(b1 - b2)./b3;
             operatorOutput = b([1,3]);
-            % operatorOutput = obj.x_2([1,3]);
 
             %debug
             obj.debugVectorCell{1}(:,obj.cycleCount) = obj.x_1;
@@ -139,8 +93,6 @@ classdef ControlInvB < handle
             obj.cycleCount = obj.cycleCount +1;
 
         end
-
-
 
     end
 end

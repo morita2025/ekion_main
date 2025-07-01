@@ -14,7 +14,12 @@ function output_struct = getVariableFunction(blockNum,length,ref)
     output_struct.y_l=zeros(TubeNum,length);
     output_struct.y=zeros(TubeNum,length);
     output_struct.f=zeros(AlmiNum,length);
+    output_struct.f_1=zeros(AlmiNum,length);
+    output_struct.f_2=zeros(AlmiNum,length);
     output_struct.b=zeros(AlmiNum,length);
+    output_struct.disturbunceYa=zeros(AlmiNum,length);
+    output_struct.disturbunceY=zeros(TubeNum,length);
+    output_struct.disturbunceYl=zeros(TubeNum,length);
     output_struct.y_f=zeros(AlmiNum,length);
     output_struct.y_g=zeros(AlmiNum,length);
 

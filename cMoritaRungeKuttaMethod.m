@@ -2,9 +2,11 @@ function nextStateVariable = cMoritaRungeKuttaMethod(obj,u)
 
     if ~obj.prm.experimentalSettings.isRugekuttaMethodUse
         dxdt = obj.getDxdt(u,obj.stateVariable);
+        obj.dxdtPreserved = dxdt; 
         nextStateVariable = obj.stateVariable + obj.dt*+dxdt;
     else
         k1 = obj.getDxdt(u,obj.stateVariable);
+        obj.dxdtPreserved = k1;
         k2 = obj.getDxdt(u,obj.stateVariable + 0.5*obj.dt*k1);
         k3 = obj.getDxdt(u,obj.stateVariable + 0.5*obj.dt*k2);
         k4 = obj.getDxdt(u,obj.stateVariable + obj.dt*k3);
