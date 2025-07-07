@@ -1,4 +1,4 @@
-classdef CalcOperatorPrm_ekion < handle
+classdef CalcOperatorPrm_ekion < handle 
 
     properties (Constant ,Access = private) %Constのproperty
         constPrivatePrm = struct("d",[0.12; 0.07; 0.03; 0.03; 0.02; 0.01; 0.01; 0.02; 0.03],...
@@ -294,6 +294,7 @@ classdef CalcOperatorPrm_ekion < handle
             obj.tube.mwcw = obj.tube.specificHeat.* obj.tube.mw;
 
             %part4k (k=1,2,3...)
+            A_w_4k = zeros(4,1);
             m_w_4k = zeros(3,1);
             m_w_4k = obj.tube.dx4k * (S(5,1) - S(10,1)) * obj.tube.density;
             obj.tube.mw4k = m_w_4k;

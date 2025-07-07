@@ -6,11 +6,8 @@ addpath(pwd + "\plant\", pwd + "\Abstract\")
     blockNum = 3;
     liquidVelocityGain = 1.00;
     dt = 1;
-
     t = 0:dt:max_time;
     liquidVelocity = 0.002*liquidVelocityGain;
-    isCompensateD1 = true;
-    isCompensateD2 = true;
 
 %% 目標値 & パラメータ
     alpah_l = 16;
@@ -21,13 +18,16 @@ addpath(pwd + "\plant\", pwd + "\Abstract\")
     ref =0.4*[0.3, 0, 0.1/liquidVelocityGain;...
                0.3, 0, 0.18/liquidVelocityGain;...
                0.5, 0, 0.27/liquidVelocityGain];
+    isCompensateD1 = true;
+    isCompensateD2 = true;
+
 %% 初期化
     prm =  CalcOperatorPrm_ekion(outsideTemperature=27.00,i_max=3,i_min=0,velocity=liquidVelocity,tau=tau,p1=p1,p2= p2,... 
                                  heatTransferCoef_air=270,heatTransferCoef_tube=270,heatTransferCoef_liquid=alpah_l,...
                                  isRugekuttaMethodUse=true,isInterferrence=true,isCompensateD1=isCompensateD1,isCompensateD2=isCompensateD2);
     variable= getVariableFunction(blockNum,t,refTimePrm,ref);
     plant = LegacyPlantAdapter(prm=prm,dt=dt,cycleNum=length(t),blockNum=blockNum);
-    operator = struct("control",struct("InvB",{cell(blockNum,1)},"Compensate",{cell(blockNum,1)}),"debug",struct("NInvM",{cell(blockNum,1)},"Q",{cell(blockNum,1)}),...
+    operator = struct("control",struct("InvB",{cell(3,1)},"Compensate",{cell(3,1)}),"debug",struct("NInvM",{cell(3,1)},"Q",{cell(3,1)}),...
                 "bezoutCheck",struct("N",{ControllerN(prm=prm,dt=dt,cycleNum=length(t))}, "InvB",{ControllerInvB(prm=prm,dt=dt,cycleNum=length(t))}, ...
                                     "InvD",{ControllerInvD(prm=prm,dt=dt,cycleNum=length(t))},"Q",{ControllerQ(prm=prm,dt=dt,cycleNum=length(t))},  ...
                                     "NInvM",{ControllerN(prm=prm,dt=dt,cycleNum=length(t))}));
@@ -38,14 +38,10 @@ addpath(pwd + "\plant\", pwd + "\Abstract\")
         %debug
         operator.debug.NInvM{blockId} = ControllerN(prm=prm,dt=dt,cycleNum=length(t));
         operator.debug.Q{blockId} = ControllerQ(prm=prm,dt=dt,cycleNum=length(t));
+        tDebugX2{blockId} = zeros(3,1);
     end
-    % tDebugX1 =  {zeros(3,1)};
+    tDebugX1 =  {zeros(3,1)};
     variable.debug_y(:,1) = zeros(2,1);
-%% 作業用変数
-    % debugInvQF1 = ControllerInvQF1(prm=prm,dt=dt,cycleNum=length(t));
-    % debugInvTildeNF2 = ControllerInvTildeNF2(prm=prm,dt=dt,cycleNum=length(t));
-    % debugN{55} = ControllerN(prm=prm,dt=dt,cycleNum=length(t)); 
-    % debugN{54} = ControllerQ(prm=prm,dt=dt,cycleNum=length(t)); 
 
 %%　外乱の定義
    variable.disturbunceYa(:,1) = 0;
@@ -55,8 +51,8 @@ addpath(pwd + "\plant\", pwd + "\Abstract\")
 for cycleCount = 1:length(t)
    for blockId =1:blockNum
 %% debug (NM^{-1})
-        variable.debug_NInvM([3*blockId-2,3*blockId],cycleCount+1) ...
-            = operator.debug.NInvM{blockId}.calcNextCycle(1./prm.MOperatorConstPrm([1,3],1).* operator.debug.Q{blockId}.calcNextCycle(variable.ref([3*blockId-2,3*blockId],cycleCount)));
+        tDebugX2{blockId} =  operator.debug.Q{blockId}.calcNextCycle(variable.ref([3*blockId-2,3*blockId],cycleCount));
+        variable.debug_NInvM([3*blockId-2,3*blockId],cycleCount+1) = operator.debug.NInvM{blockId}.calcNextCycle(1./prm.MOperatorConstPrm([1,3],1).* tDebugX2{blockId});
 
 %% comepensator
         if cycleCount == 1
@@ -86,28 +82,11 @@ for cycleCount = 1:length(t)
         variable.y(:,cycleCount+1) = plantVariable.y;
         variable.y_l(:,cycleCount+1) = plantVariable.y_l;
 
-    %作業用
-    % variable.unko7(:,cycleCount) =debugInvTildeNF2.calcNextCycle([1; 1]);
-    % variable.unko5(:,cycleCount) =debugN{54}.calcNextCycle(variable.unko7(:,cycleCount)); %Q
-    % variable.unko6(:,cycleCount) =debugN{55}.calcNextCycle(variable.unko5(:,cycleCount)); %N
-
-    %Bezout check
-    ref = 0.05*[1;1];
-    variable.debug_e(:,cycleCount) = ref - variable.debug_y(:,cycleCount);
-    variable.debug_u(:,cycleCount) =  operator.bezoutCheck.InvB.calcNextCycle(variable.debug_e(:,cycleCount));
-    variable.debug_ya(:,cycleCount+1) = operator.bezoutCheck.InvD.calcNextCycle(variable.debug_u(:,cycleCount));
-    variable.debug_y(:,cycleCount+1) = operator.bezoutCheck.N.calcNextCycle(variable.debug_ya(:,cycleCount+1));
-    variable.debug_NInvMBezout(:,cycleCount+1) = operator.bezoutCheck.NInvM.calcNextCycle(1./prm.MOperatorConstPrm([1,3],1).* ...
-                                                        operator.bezoutCheck.Q.calcNextCycle(ref));
 end
 
 %plot:debug
-debugMicoreactorPlotter(blockNum,t,variable);
+% debugMicoreactorPlotter(blockNum,t,variable);
 
-%Bezout等式確認
-% plot(variable.debug_y(1,:))
-% hold on
-% plot(variable.debug_NInvMBezout(1,:))
 
 
 

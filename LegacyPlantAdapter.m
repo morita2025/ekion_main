@@ -1,4 +1,4 @@
-classdef LegacyPlantAdapter  < handle & Operator
+classdef LegacyPlantAdapter  < handle & Operator 
     properties
         blockNum
         prevYa

@@ -1,4 +1,4 @@
-classdef ControllerInvB < handle & Operator & Integrator
+classdef ControllerInvB < handle & Operator & Integrator 
     properties
         %デバッグ用
     end

@@ -1,4 +1,4 @@
-classdef ControllerCompemsate < handle & Operator & Integrator
+classdef ControllerCompemsate < handle & Operator & Integrator 
     properties
         %デバッグ用
     end
@@ -30,7 +30,7 @@ classdef ControllerCompemsate < handle & Operator & Integrator
     end
 
     methods
-        function obj = ControllerCompemsate(options)
+        function obj = ControllerCompemsate(options) 
             arguments                
                 options.prm = [];
                 options.dt  =1;
@@ -70,7 +70,7 @@ classdef ControllerCompemsate < handle & Operator & Integrator
         end 
 
         %update
-        function operatorOutput =  calcNextCycle(obj,options)
+        function operatorOutput =  calcNextCycle(obj,options) 
             arguments
                 obj 
                 options.uPrevious = zeros(3,1);

@@ -1,6 +1,10 @@
 function pfig = debugMicoreactorPlotter(blockNum,t,variable)
-        pfig =cell(2,1);
+        h = findall(0, 'Type', 'figure', 'Name', 'oshirase');
+        if ~isempty(h)
+            close(h);
+        end
 
+        pfig =cell(2,1);
         %ya系列をyl系列に変換する処理
         variable.plotYa = NaN(4 * blockNum, length(variable.y_a));  
         variable.plotRef1 = NaN(4 * blockNum, length(variable.ref)); 
@@ -19,20 +23,20 @@ function pfig = debugMicoreactorPlotter(blockNum,t,variable)
         plot(variable.y_l(:,length(t)-3),"Color","r")
         hold on
         plot(variable.y(:,length(t)-3),"Color","b")
-        plot(variable.ref(1,1)*ones(size(variable.y(:,length(t)-3))),"--")
         plot(variable.plotRef1(:,length(t)-3),"o","LineWidth",2,"Color","b")
         plot(variable.plotRef2(:,length(t)-3),"o","LineWidth",2,"Color","r")
-        % legend("yl_{4n}[C^{\circ}]","y_{4n-3}[C^{\circ}]","ref_{3k-2}[C^{\circ}]","ref_{3k}[C^{\circ}]","fontsize",15,"location","northwest")
+        legend("yl[C^{\circ}]","y[C^{\circ}]","ref_{3k-2}[C^{\circ}]","ref_{3k}[C^{\circ}]","fontsize",15,"location","northwest")
         title("t=" + string(length(t)-3) + "[s]" +"  All Box temperature","fontsize",18)
         % 
         
         % pfig{2} = figure('Position', [2000, 000, 1500*0.8, 1200*0.8]);
         pfig{2} = figure(2);
+        plotBlockNumMax = 5;
         try
-            if blockNum <3
+            if blockNum <= plotBlockNumMax
                 plotBlockNum = blockNum;
             else
-                plotBlockNum =3;
+                plotBlockNum =plotBlockNumMax;
             end
 
             for blockId = 1:blockNum
@@ -56,6 +60,6 @@ function pfig = debugMicoreactorPlotter(blockNum,t,variable)
                     title("Box:" + string(blockId) +"  Current","fontsize",18)
             end
         catch
-            disp("データはblockId=3までしか表示できません")
+            disp("データはblockId="+string(plotBlockNumMax)+"までしか表示できません")
         end
 end
